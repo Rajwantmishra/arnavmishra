@@ -1,14 +1,312 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monster Catch - Asteroid Game</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: linear-gradient(to top, #87ceeb, #fff);
+      overflow: hidden;
+    }
+    #game-area {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+      cursor: crosshair;
+      background: linear-gradient(to top, #87ceeb 60%, transparent 100%);
+    }
+    #clouds {
+      position: absolute;
+      top: 0;
+      width: 100%;
+      min-height: 150px;
+      height: auto;
+      background: url('clouds-vector.webp') repeat-x top;
+      background-size: contain;
+      opacity: 1;
+      z-index: 100;
+      pointer-events: none;
+      animation: scrollClouds 60s linear infinite;
+    }
+
+    @keyframes scrollClouds {
+      from {
+        background-position-x: 0;
+      }
+      to {
+        background-position-x: -1000px;
+      }
+    }
+
+    #cityscape {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 100px;
+      background: url('blue-silhouette-cityscape-png.png') repeat-x bottom;
+      background-size: contain;
+      z-index: 1;
+    }
+    #cursor-indicator {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 2px dashed rgb(0, 0, 0);
+      border-radius: 50%;
+      pointer-events: none;
+      display: none;
+      transform: translate(-50%, -50%);
+      z-index: 1000;
+    }
+    #player {
+      width: 60px;
+      height: 60px;
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: url('Toy_Monster_Face_Emoji.png') no-repeat center;
+      background-size: contain;
+      z-index: 10;
+    }
+    .star {
+      width: 50px;
+      height: 50px;
+      position: absolute;
+      background-image: url('Space-Asteroid-PNG-High-Quality-Image.png');
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 100% 100%;
+      border-radius: 50%;
+      z-index: 99;
+    }
+    .caught {
+      background-color: yellow !important;
+      background-image: none !important;
+      border-radius: 50%;
+    }
+    .blast {
+      background-color: red !important;
+      background-image: none !important;
+      border-radius: 50%;
+    }
+    .boom {
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      background: url('comic-boom-explosion-2-1.png') no-repeat center;
+      background-size: contain;
+      pointer-events: none;
+      z-index: 9999;
+    }
+    #score {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 24px;
+      font-weight: bold;
+      z-index: 100;
+    }
+    #lives {
+      position: absolute;
+      top: 10px;
+      left: 150px;
+      font-size: 24px;
+      font-weight: bold;
+      z-index: 100;
+      color: red;
+    }
+    #mute-toggle, #restart-button {
+      position: absolute;
+      top: 10px;
+      font-size: 16px;
+      z-index: 100;
+    }
+    #mute-toggle {
+      right: 10px;
+    }
+    #restart-button {
+      right: 120px;
+    }
+    #game-over {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 48px;
+      font-weight: bold;
+      color: red;
+      display: none;
+      z-index: 2000;
+    }
+  </style>
+</head>
 <body>
+  <div id="game-area">
+    <div id="clouds"></div>
+    <div id="cursor-indicator"></div>
+    <div id="score">Score: 0</div>
+    <div id="lives">Lives: 50</div>
+    <button id="restart-button">🔁 Restart</button>
+    <button id="mute-toggle">🔇 Unmute</button>
+    <div id="player"></div>
+    <div id="cityscape"></div>
+    <div id="game-over">💥 Game Over 💥</div>
+    <audio id="catch-sound" src="button-3.mp3"></audio>
+    <audio id="blast-sound" src="button-10.mp3"></audio>
+  </div>
+  <script>
+    const player = document.getElementById('player');
+    const gameArea = document.getElementById('game-area');
+    const scoreDisplay = document.getElementById('score');
+    const livesDisplay = document.getElementById('lives');
+    const catchSound = document.getElementById('catch-sound');
+    const blastSound = document.getElementById('blast-sound');
+    const cursorIndicator = document.getElementById('cursor-indicator');
+    const muteButton = document.getElementById('mute-toggle');
+    const restartButton = document.getElementById('restart-button');
+    const gameOverText = document.getElementById('game-over');
 
-<h1>Arnav</h1>
-<h2>Arnav 2</h2>
-<h3>Arnav 3</h3>
-<h4>Arnav 4</h4>
-<h5>Arnav 5</h5>
-<h6>Arnav 6</h6>
+    let score = 0;
+    let lives = 50;
+    let isMuted = true;
+    let playerX = window.innerWidth / 2 - 30;
+    let gameActive = true;
+    let boomShown = false;
 
+    const updatePlayerPosition = () => {
+      player.style.left = `${Math.max(0, Math.min(window.innerWidth - 60, playerX))}px`;
+    };
+
+    document.addEventListener('keydown', (e) => {
+      if (!gameActive) return;
+      const speed = 20;
+      if (e.key === 'ArrowLeft') playerX -= speed;
+      if (e.key === 'ArrowRight') playerX += speed;
+      updatePlayerPosition();
+    });
+
+    gameArea.addEventListener('mousemove', (e) => {
+      if (!gameActive) return;
+      const bounds = gameArea.getBoundingClientRect();
+      const x = e.clientX - bounds.left;
+      playerX = x - 30;
+      updatePlayerPosition();
+      cursorIndicator.style.display = 'block';
+      cursorIndicator.style.left = `${x}px`;
+      cursorIndicator.style.top = `${window.innerHeight - 40}px`;
+    });
+
+    gameArea.addEventListener('touchstart', (e) => moveToTouch(e.touches[0].clientX));
+    gameArea.addEventListener('touchmove', (e) => moveToTouch(e.touches[0].clientX));
+
+    function moveToTouch(xTouch) {
+      if (!gameActive) return;
+      playerX = xTouch - 30;
+      updatePlayerPosition();
+    }
+
+    muteButton.addEventListener('click', () => {
+      isMuted = !isMuted;
+      muteButton.textContent = isMuted ? '🔇 Unmute' : '🔊 Mute';
+    });
+
+    restartButton.addEventListener('click', () => {
+      score = 0;
+      lives = 50;
+      boomShown = false;
+      scoreDisplay.textContent = 'Score: 0';
+      livesDisplay.textContent = 'Lives: 50';
+      gameOverText.style.display = 'none';
+      gameActive = true;
+    });
+
+    function showBoom(x, y) {
+      for (let i = 0; i < 3; i++) {
+        const boom = document.createElement('div');
+        boom.className = 'boom';
+        boom.style.left = `${x + i * 60 - 100}px`;
+        boom.style.top = `${y + (Math.random() * 40 - 20)}px`;
+        gameArea.appendChild(boom);
+        setTimeout(() => boom.remove(), 1000);
+      }
+    }
+
+    function createStar() {
+      if (!gameActive) return;
+      const star = document.createElement('div');
+      star.className = 'star';
+      star.style.left = Math.random() * (window.innerWidth - 40) + 'px';
+      star.style.top = '0px';
+      gameArea.appendChild(star);
+      moveStar(star);
+    }
+
+    function moveStar(star) {
+      let top = 0;
+      const interval = setInterval(() => {
+        if (!gameActive) {
+          clearInterval(interval);
+          star.remove();
+          return;
+        }
+        top += 5;
+        star.style.top = `${top}px`;
+
+        const starRect = star.getBoundingClientRect();
+        const playerRect = player.getBoundingClientRect();
+
+        if (
+          starRect.bottom >= playerRect.top &&
+          starRect.top <= playerRect.bottom &&
+          starRect.left < playerRect.right &&
+          starRect.right > playerRect.left
+        ) {
+          clearInterval(interval);
+          star.classList.add('caught');
+          if (!isMuted) {
+            catchSound.currentTime = 0;
+            catchSound.play();
+          }
+          setTimeout(() => star.remove(), 300);
+          score++;
+          scoreDisplay.textContent = `Score: ${score}`;
+        } else if (top + 40 >= window.innerHeight) {
+          clearInterval(interval);
+          const starX = parseInt(star.style.left) || 0;
+          const starY = parseInt(star.style.top) || top;
+          showBoom(starX, starY);
+
+          star.classList.add('blast');
+          if (!isMuted) {
+            blastSound.currentTime = 0;
+            blastSound.play();
+          }
+          setTimeout(() => star.remove(), 300);
+          lives--;
+          livesDisplay.textContent = `Lives: ${lives}`;
+          if (lives <= 0 && !boomShown) {
+            boomShown = true;
+            gameActive = false;
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+            showBoom(centerX, centerY);
+            setTimeout(() => {
+              gameOverText.style.display = 'block';
+            }, 800);
+          }
+        }
+      }, 30);
+    }
+
+    setInterval(() => {
+      if (gameActive) createStar();
+    }, 1000);
+  </script>
 </body>
 </html>
-
