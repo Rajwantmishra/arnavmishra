@@ -173,7 +173,7 @@
     const gameOverText = document.getElementById('game-over');
 
     let score = 0;
-    let lives = 10;
+    let lives = 11;
     let isMuted = true;
     let playerX = window.innerWidth / 2 - 30;
     let gameActive = true;
@@ -218,7 +218,7 @@
 
     restartButton.addEventListener('click', () => {
       score = 0;
-      lives = 50;
+      lives = 11;
       boomShown = false;
       scoreDisplay.textContent = 'Score: 0';
       livesDisplay.textContent = 'Lives: 50';
